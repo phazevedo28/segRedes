@@ -5,6 +5,7 @@
 package com.mycompany.seg;
 
 import java.io.Serializable;
+import java.util.Objects;
 
 /**
  *
@@ -49,5 +50,22 @@ class Usuario implements Serializable {
         this.senha = senha;
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Usuario) {
+            return this.getSalt().equals(((Usuario) obj).getSalt()) && this.getNome().equals(((Usuario) obj).getNome()) && this.getSenha().equals(((Usuario) obj).getSenha());
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 3;
+        hash = 53 * hash + Objects.hashCode(this.salt);
+        hash = 53 * hash + Objects.hashCode(this.nome);
+        hash = 53 * hash + Objects.hashCode(this.senha);
+        return hash;
+    }
 
 }
