@@ -14,11 +14,11 @@ import org.apache.commons.codec.binary.Hex;
  */
 class Usuario implements Serializable {
 
-    private byte[] nome;
-    private byte[] senha;
+    private String nome;
+    private String senha;
     private byte[] salt;
 
-    public Usuario(byte[] nome, byte[] senha, byte[] salt) {
+    public Usuario(String nome, String senha, byte[] salt) {
 
         this.nome = nome;
         this.senha = senha;
@@ -28,28 +28,28 @@ class Usuario implements Serializable {
     public Usuario() {
     }
 
-    Usuario(byte[] nome, byte[] senha) {
+    Usuario( String nome,  String senha) {
         this.nome = nome;
         this.senha = senha;
     }
 
-    public byte[] getNome() {
+    public  String getNome() {
         return nome;
     }
 
-    public byte[] getSalt() {
+    public  byte[] getSalt() {
         return salt;
     }
 
-    public byte[] getSenha() {
+    public  String getSenha() {
         return senha;
     }
 
-    public void setNome(byte[] nome) {
+    public void setNome( String nome) {
         this.nome = nome;
     }
 
-    public void setSenha(byte[] senha) {
+    public void setSenha( String senha) {
         this.senha = senha;
     }
 
@@ -62,9 +62,5 @@ class Usuario implements Serializable {
         }
     }
 
-    public String toString() {
-        String imp = Hex.encodeHexString(this.nome) + "" + "" + Hex.encodeHexString(this.senha);
-        return imp;
-    }
-
+    
 }

@@ -16,6 +16,7 @@ import java.util.ArrayList;
  *
  * @author phazevedo28
  */
+
 class Empacotamento {
 
     // serialização: gravando o objetos no arquivo binário "nomeArq"

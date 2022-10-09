@@ -4,6 +4,9 @@
  */
 package com.mycompany.seg;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -12,6 +15,7 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.security.Security;
+import java.util.List;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import java.util.Scanner;
@@ -26,6 +30,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
+import static org.apache.commons.codec.CharEncoding.UTF_16;
 import org.apache.commons.codec.DecoderException;
 
 public class Seg {
@@ -58,8 +63,7 @@ public class Seg {
         String senhaPlana = input.next();
         input.close();
         UsuarioPlano usuarioAtual = new UsuarioPlano(nomePlano, senhaPlana);
-        boolean estaNalista = estaNaLista(usuarioAtual);
-        if (estaNalista) {
+        if (estaNaLista(usuarioAtual)) {
             System.out.println("");
             System.out.println("Usuário já cadastrado");
         } else {
@@ -70,7 +74,11 @@ public class Seg {
 
     public static boolean estaNaLista(UsuarioPlano usuarioAtual) {
 
+        usuarios.forEach(System.out::println);
+
         usuarios = Empacotamento.lerArquivoBinario("/home/phazevedo28/Documentos/seg");
+        
+         usuarios.forEach(System.out::println);
 
         for (Object item : usuarios) {
 
@@ -82,15 +90,15 @@ public class Seg {
                         costParameter,
                         blocksize, parallelizationParam);
                 String IV = gerarIV(usuarioAtual.getSenha(), Hex.encodeHexString(((Usuario) item).getSalt()), iteracoes);
-
-                Usuario usuario = new Usuario(derivedKeyFromScrypt, gerarGCM(((Usuario) item).getSalt(), usuarioAtual.getSenha(), IV));
-                System.out.println("nome do Usuario para na comparacao após instanciar (estaNaLista) é: " + usuario.getNome());
-                System.out.println("senha do Usuario para na comparacao após instanciar (estaNaLista) é: " + gerarGCM(((Usuario) item).getSalt(), usuarioAtual.getSenha(), IV));
+                byte[] senha = gerarGCM(((Usuario) item).getSalt(), usuarioAtual.getSenha(), IV);
+                Usuario usuario = new Usuario(Hex.encodeHexString((derivedKeyFromScrypt)), Hex.encodeHexString(gerarGCM(((Usuario) item).getSalt(), usuarioAtual.getSenha(), IV)));
+                System.out.println("nome do Usuario para na comparacao após instanciar (estaNaLista) é: " + Hex.encodeHexString(derivedKeyFromScrypt));
+                System.out.println("senha do Usuario para na comparacao após instanciar (estaNaLista) é: " + Hex.encodeHexString(senha));
                 System.out.println("");
                 System.out.println("");
                 /* System.out.println("");
                 System.out.println("comparar com: " + usuario);*/
-                if (usuario.equals(item)) {
+   if (((Usuario) item).equals(usuario)) {
                     return true;
                 }
             } catch (NoSuchAlgorithmException ex) {
@@ -123,15 +131,15 @@ public class Seg {
                 blocksize, parallelizationParam);
         String IV = gerarIV(usuarioAtual.getSenha(), Hex.encodeHexString(salt), iteracoes);
         try {
-            Usuario usuario = new Usuario(derivedKeyFromScrypt, gerarGCM(salt, usuarioAtual.getSenha(), IV), salt);
+            Usuario usuario = new Usuario(Hex.encodeHexString(derivedKeyFromScrypt), Hex.encodeHexString(gerarGCM(salt, usuarioAtual.getSenha(), IV)), salt);
             System.out.println("salt do Usuario dps de instanciar objeto cadastro: " + usuario.getSalt());
             System.out.println("O usuario cadastrado é: " + usuario);
             usuarios.add(usuario);
+            Empacotamento.gravarArquivoBinario(usuarios, "/home/phazevedo28/Documentos/seg");
             System.out.println("salta do Usuario dps de adicionar na lista: " + ((Usuario) usuarios.get(usuarios.size() - 1)).getSalt());
             System.out.println("");
             System.out.println("");
             System.out.println("");
-            Empacotamento.gravarArquivoBinario(usuarios, "/home/phazevedo28/Documentos/seg");
             /*System.out.println("");
             System.out.println("Chave derivada usando scrypt: ");
             System.out.println(Hex.encodeHexString(derivedKeyFromScrypt));*/
@@ -153,7 +161,7 @@ public class Seg {
         /*System.out.println("");
         System.out.println("Chave derivada usando scrypt: ");
         System.out.println(Hex.encodeHexString(derivedKeyFromScrypt));*/
-        Empacotamento.gravarArquivoBinario(usuarios, "/home/phazevedo28/Documentos/seg");
+
     }
 
     public static byte[] gerarSalt() throws NoSuchAlgorithmException {
@@ -172,6 +180,7 @@ public class Seg {
     }
 
     public static void testeImprimirArquivo() {
+
         int i = 1;
         for (Object item : usuarios) {
 
@@ -244,7 +253,7 @@ public class Seg {
         return enc;
     }
 
-   /* public static byte[] gerarMsgCifrada(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
+    public static byte[] gerarMsgCifrada(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
         byte[] senha;
         senha = senhaPlana.getBytes();
         System.out.println("Msg = " + senhaPlana);
@@ -268,9 +277,9 @@ public class Seg {
 
         System.out.println("Msg cifrada = " + Hex.encodeHexString(enc));
         return enc;
-    } */
-    
-   /* public static String gerarMsgDecifrada(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
+    }
+
+    /* public static String gerarMsgDecifrada(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
         byte[] senha;
         senha = senhaPlana.getBytes();
         System.out.println("Msg = " + senhaPlana);
