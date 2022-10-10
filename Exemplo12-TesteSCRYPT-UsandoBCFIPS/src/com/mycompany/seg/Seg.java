@@ -32,6 +32,8 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
 import static org.apache.commons.codec.CharEncoding.UTF_16;
 import org.apache.commons.codec.DecoderException;
+import org.apache.commons.codec.binary.Base32;
+import de.taimos.totp.TOTP;
 
 public class Seg {
 
@@ -49,6 +51,8 @@ public class Seg {
     public static final int GCM_TAG_LENGTH = 16; // in bytes
 
     static Integer iteracoes = 1000;
+    
+    static Integer iteracoesMasterKey = 5000;
 
     static ArrayList<Object> usuarios = new ArrayList();
 
@@ -66,6 +70,7 @@ public class Seg {
         if (estaNaLista(usuarioAtual)) {
             System.out.println("");
             System.out.println("Usuário já cadastrado");
+           
         } else {
             cadastrarUsuario(usuarioAtual);
         }
@@ -74,11 +79,7 @@ public class Seg {
 
     public static boolean estaNaLista(UsuarioPlano usuarioAtual) {
 
-        usuarios.forEach(System.out::println);
-
         usuarios = Empacotamento.lerArquivoBinario("/home/phazevedo28/Documentos/seg");
-        
-         usuarios.forEach(System.out::println);
 
         for (Object item : usuarios) {
 
@@ -98,7 +99,18 @@ public class Seg {
                 System.out.println("");
                 /* System.out.println("");
                 System.out.println("comparar com: " + usuario);*/
-   if (((Usuario) item).equals(usuario)) {
+                if (((Usuario) item).equals(usuario)) {
+                    String masterKey = gerarMasterKey(Hex.encodeHexString(((Usuario) item).getSalt()), usuarioAtual.getSenha(), iteracoesMasterKey);
+                    String codigoServer = getTOTPCode(masterKey);
+                    String codigoCliente = getTOTPCode(masterKey);
+                    System.out.println(codigoCliente);
+                    System.out.println(codigoServer);
+                    
+                    if(codigoServer.equals(codigoCliente)){
+                        System.out.println("Segundo fator de autenticação validado com sucesso");
+                    }
+                     
+                     
                     return true;
                 }
             } catch (NoSuchAlgorithmException ex) {
@@ -220,6 +232,22 @@ public class Seg {
         return derivedPass;
     }
 
+    public static String gerarMasterKey(
+            String password, String salt, Integer iterations) {
+        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(),
+                salt.getBytes(), iterations, 128);
+        SecretKeyFactory pbkdf2 = null;
+        String derivedPass = null;
+        try {
+            pbkdf2 = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512", "BCFIPS");
+            SecretKey sk = pbkdf2.generateSecret(spec);
+            derivedPass = Hex.encodeHexString(sk.getEncoded());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return derivedPass;
+    }
+
     public static byte[] gerarGCM(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
         byte[] senha;
         senha = senhaPlana.getBytes();
@@ -251,6 +279,14 @@ public class Seg {
         System.out.println("Msg decifrada = " + Utils.toString(out2));
 
         return enc;
+    }
+    
+     public static String getTOTPCode(String secretKey) {
+        Base32 base32 = new Base32();
+        byte[] bytes = base32.decode(secretKey);
+        String hexKey = Hex.encodeHexString(bytes);
+        return TOTP.getOTP(hexKey);
+
     }
 
     public static byte[] gerarMsgCifrada(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
