@@ -25,9 +25,6 @@ class Usuario implements Serializable {
         this.salt = salt;
     }
 
-    public Usuario() {
-    }
-
     Usuario( String nome,  String senha) {
         this.nome = nome;
         this.senha = senha;
@@ -60,6 +57,10 @@ class Usuario implements Serializable {
         } else {
             return false;
         }
+    }
+    
+    public String toString(){
+        return this.getNome() + this.getSenha();
     }
 
     

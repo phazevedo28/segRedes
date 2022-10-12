@@ -4,9 +4,6 @@
  */
 package com.mycompany.seg;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.Key;
@@ -15,7 +12,6 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.security.Security;
-import java.util.List;
 import org.apache.commons.codec.binary.Hex;
 import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import java.util.Scanner;
@@ -30,131 +26,69 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
-import static org.apache.commons.codec.CharEncoding.UTF_16;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Base32;
 import de.taimos.totp.TOTP;
 
 public class Seg {
 
-    static int costParameter = 2048; // exemplo: 2048 (afeta uso de memória e CPU)
-
-    static int blocksize = 8; // exemplo: 8
-
-    static int parallelizationParam = 1;
-
-    private static final int MAC_SIZE = 128; // in bits
-
-    // AES-GCM parameters
-    public static final int AES_KEY_SIZE = 128; // in bits
-    public static final int GCM_NONCE_LENGTH = 12; // in bytes
-    public static final int GCM_TAG_LENGTH = 16; // in bytes
-
-    static Integer iteracoes = 1000;
-    
-    static Integer iteracoesMasterKey = 5000;
-
     static ArrayList<Object> usuarios = new ArrayList();
 
-    public static void main(String[] args) throws NoSuchAlgorithmException {
+    public static void main(String[] args) throws NoSuchAlgorithmException, InterruptedException {
         instanciaSecurityProvider();
         Scanner input = new Scanner(System.in);
-        /*System.out.println("Digite o salt(teste):");
-        String salt = input.next();*/
         System.out.println("Digite seu nome: ");
         String nomePlano = input.next();
         System.out.println("Digite sua senha: ");
         String senhaPlana = input.next();
         input.close();
-        UsuarioPlano usuarioAtual = new UsuarioPlano(nomePlano, senhaPlana);
-        if (estaNaLista(usuarioAtual)) {
+        Usuario usuarioAtual = new Usuario(nomePlano, senhaPlana);
+        Usuario daLista = estaNaLista(usuarioAtual);
+        if (daLista != null) {
+            Usuario usuarioAtualAtualizado = gerarNomeESenhaNaoPlanos(usuarioAtual, daLista.getSalt());
+            segundoFatorDeAutenticacao(usuarioAtualAtualizado, daLista);
             System.out.println("");
             System.out.println("Usuário já cadastrado");
-           
+
         } else {
-            cadastrarUsuario(usuarioAtual);
+            Usuario paraCadastro = gerarNomeESenhaNaoPlanos(usuarioAtual, gerarSalt());
+            cadastrarUsuario(paraCadastro);
         }
         testeImprimirArquivo();
     }
 
-    public static boolean estaNaLista(UsuarioPlano usuarioAtual) {
-
+    public static Usuario estaNaLista(Usuario usuarioAtual) {
         usuarios = Empacotamento.lerArquivoBinario("/home/phazevedo28/Documentos/seg");
+        for (Object daLista : usuarios) {
+            Usuario usuario = gerarNomeESenhaNaoPlanos(usuarioAtual, ((Usuario) daLista).getSalt());
+            System.out.println("O valor do Salt para comparacao(estaNaLista) é: " + Hex.encodeHexString(((Usuario) daLista).getSalt()));
+            System.out.println("");
+            System.out.println("");
+            if (((Usuario) daLista).equals(usuario)) {
 
-        for (Object item : usuarios) {
-
-            try {
-                System.out.println("O valor do Salt para na comparacao(estaNaLista) é: " + ((Usuario) item).getSalt());
-                byte[] derivedKeyFromScrypt;
-                String nome = usuarioAtual.getNome();
-                derivedKeyFromScrypt = SCRYPT.useScryptKDF(nome.toCharArray(), ((Usuario) item).getSalt(),
-                        costParameter,
-                        blocksize, parallelizationParam);
-                String IV = gerarIV(usuarioAtual.getSenha(), Hex.encodeHexString(((Usuario) item).getSalt()), iteracoes);
-                byte[] senha = gerarGCM(((Usuario) item).getSalt(), usuarioAtual.getSenha(), IV);
-                Usuario usuario = new Usuario(Hex.encodeHexString((derivedKeyFromScrypt)), Hex.encodeHexString(gerarGCM(((Usuario) item).getSalt(), usuarioAtual.getSenha(), IV)));
-                System.out.println("nome do Usuario para na comparacao após instanciar (estaNaLista) é: " + Hex.encodeHexString(derivedKeyFromScrypt));
-                System.out.println("senha do Usuario para na comparacao após instanciar (estaNaLista) é: " + Hex.encodeHexString(senha));
-                System.out.println("");
-                System.out.println("");
-                /* System.out.println("");
-                System.out.println("comparar com: " + usuario);*/
-                if (((Usuario) item).equals(usuario)) {
-                    String masterKey = gerarMasterKey(Hex.encodeHexString(((Usuario) item).getSalt()), usuarioAtual.getSenha(), iteracoesMasterKey);
-                    String codigoServer = getTOTPCode(masterKey);
-                    String codigoCliente = getTOTPCode(masterKey);
-                    System.out.println(codigoCliente);
-                    System.out.println(codigoServer);
-                    
-                    if(codigoServer.equals(codigoCliente)){
-                        System.out.println("Segundo fator de autenticação validado com sucesso");
-                    }
-                     
-                     
-                    return true;
-                }
-            } catch (NoSuchAlgorithmException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (NoSuchProviderException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (NoSuchPaddingException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (DecoderException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (InvalidKeyException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (InvalidAlgorithmParameterException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (IllegalBlockSizeException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
-            } catch (BadPaddingException ex) {
-                Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
+                return ((Usuario) daLista);
             }
         }
-        return false;
+        return null;
     }
 
-    public static void cadastrarUsuario(UsuarioPlano usuarioAtual) throws NoSuchAlgorithmException {
-        byte[] salt = gerarSalt();
+    public static Usuario gerarNomeESenhaNaoPlanos(Usuario usuarioAtual, byte[] salt) {
+        Integer iteracoes = 1000;
+        int costParameter = 2048; // exemplo: 2048 (afeta uso de memória e CPU)
+        int blocksize = 8; // exemplo: 8
+        int parallelizationParam = 1;
+        Usuario usuario = null;
         byte[] derivedKeyFromScrypt;
         String nome = usuarioAtual.getNome();
         derivedKeyFromScrypt = SCRYPT.useScryptKDF(nome.toCharArray(), salt,
                 costParameter,
                 blocksize, parallelizationParam);
         String IV = gerarIV(usuarioAtual.getSenha(), Hex.encodeHexString(salt), iteracoes);
+
         try {
-            Usuario usuario = new Usuario(Hex.encodeHexString(derivedKeyFromScrypt), Hex.encodeHexString(gerarGCM(salt, usuarioAtual.getSenha(), IV)), salt);
-            System.out.println("salt do Usuario dps de instanciar objeto cadastro: " + usuario.getSalt());
-            System.out.println("O usuario cadastrado é: " + usuario);
-            usuarios.add(usuario);
-            Empacotamento.gravarArquivoBinario(usuarios, "/home/phazevedo28/Documentos/seg");
-            System.out.println("salta do Usuario dps de adicionar na lista: " + ((Usuario) usuarios.get(usuarios.size() - 1)).getSalt());
-            System.out.println("");
-            System.out.println("");
-            System.out.println("");
-            /*System.out.println("");
-            System.out.println("Chave derivada usando scrypt: ");
-            System.out.println(Hex.encodeHexString(derivedKeyFromScrypt));*/
+            usuario = new Usuario(Hex.encodeHexString(derivedKeyFromScrypt), Hex.encodeHexString(gerarSenha(salt, usuarioAtual.getSenha(), IV)), salt);
+        } catch (NoSuchAlgorithmException ex) {
+            Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
         } catch (NoSuchProviderException ex) {
             Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
         } catch (NoSuchPaddingException ex) {
@@ -170,40 +104,43 @@ public class Seg {
         } catch (BadPaddingException ex) {
             Logger.getLogger(Seg.class.getName()).log(Level.SEVERE, null, ex);
         }
-        /*System.out.println("");
-        System.out.println("Chave derivada usando scrypt: ");
-        System.out.println(Hex.encodeHexString(derivedKeyFromScrypt));*/
 
+        return usuario;
+    }
+
+    public static void segundoFatorDeAutenticacao(Usuario comparador, Usuario daLista) throws InterruptedException {
+        Integer iteracoes = 5000;
+        System.out.println("Usuario Atual:  " + comparador);
+        System.out.println("Usuario da lista:  " + daLista);
+        System.out.println("");
+        System.out.println("Nome do usuario atual "+ comparador.getNome());
+        System.out.println("Senha do usuario atual "+ comparador.getSenha());
+        System.out.println("");
+        if (daLista.equals(comparador)) {
+            String masterKey = gerarMasterKey(Hex.encodeHexString(daLista.getSalt()), comparador.getSenha(), iteracoes);
+            String codigoServer = getTOTPCode(masterKey);
+            // Thread.sleep(9000);
+            String codigoCliente = getTOTPCode(masterKey);
+            System.out.println("TOTP code cliente:  " + codigoCliente);
+            System.out.println("TOTP code server:  " + codigoServer);
+            System.out.println("");
+            if (codigoServer.equals(codigoCliente)) {
+                System.out.println("Segundo fator de autenticação validado com sucesso");
+            }
+        }
+    }
+
+    public static void cadastrarUsuario(Usuario usuario) {
+        usuarios.add(usuario);
+        Empacotamento.gravarArquivoBinario(usuarios, "/home/phazevedo28/Documentos/seg");
     }
 
     public static byte[] gerarSalt() throws NoSuchAlgorithmException {
         SecureRandom sr = SecureRandom.getInstance("SHA1PRNG");
         byte[] salt = new byte[16];
         sr.nextBytes(salt);
-        /*String valorSalt = "53efb4b1157fccdb9902676329debc52";
-        byte[] salt = null;
-        try {
-            salt = Hex.decodeHex(valorSalt.toCharArray());
-        } catch (DecoderException ex) {
-
-        }*/
-        System.out.println("O valor do Salt no método gerar é: " + salt);
+        System.out.println("O valor do Salt no método gerar é: " + Hex.encodeHexString(salt));
         return salt;
-    }
-
-    public static void testeImprimirArquivo() {
-
-        int i = 1;
-        for (Object item : usuarios) {
-
-            System.out.println("");
-            System.out.printf("Objeto nro....: %d.\n", i++);
-            System.out.println(((Usuario) item).getSalt());
-            System.out.println(((Usuario) item).getNome());
-            System.out.println(((Usuario) item).getSenha());
-            System.out.println("");
-
-        }
     }
 
     private static void instanciaSecurityProvider() {
@@ -248,40 +185,31 @@ public class Seg {
         return derivedPass;
     }
 
-    public static byte[] gerarGCM(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
+    public static byte[] gerarSenha(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
+        int MAC_SIZE = 128; // in bits
+        int AES_KEY_SIZE = 128; // in bits
+        int GCM_NONCE_LENGTH = 12; // in bytes
+        int GCM_TAG_LENGTH = 16; // in bytes
         byte[] senha;
         senha = senhaPlana.getBytes();
-        System.out.println("Msg = " + senhaPlana);
         byte[] iV;
         iV = IV.getBytes();
-
         Key key;
         Cipher in, out;
-
         in = Cipher.getInstance("AES/GCM/NoPadding", "BCFIPS");
         out = Cipher.getInstance("AES/GCM/NoPadding", "BCFIPS");
-
         key = new SecretKeySpec(saltKey, "AES");
-
         GCMParameterSpec​ gcmParameters = new GCMParameterSpec​(MAC_SIZE, iV);
-
-        //in.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(N));
         in.init(Cipher.ENCRYPT_MODE, key, gcmParameters);
-
         byte[] enc = in.doFinal(senha);
-
-        System.out.println("Msg cifrada = " + Hex.encodeHexString(enc));
-
         out.init(Cipher.DECRYPT_MODE, key, gcmParameters);
         byte[] out2;
         out2 = out.doFinal(enc);
 
-        System.out.println("Msg decifrada = " + Utils.toString(out2));
-
         return enc;
     }
-    
-     public static String getTOTPCode(String secretKey) {
+
+    public static String getTOTPCode(String secretKey) {
         Base32 base32 = new Base32();
         byte[] bytes = base32.decode(secretKey);
         String hexKey = Hex.encodeHexString(bytes);
@@ -289,57 +217,17 @@ public class Seg {
 
     }
 
-    public static byte[] gerarMsgCifrada(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
-        byte[] senha;
-        senha = senhaPlana.getBytes();
-        System.out.println("Msg = " + senhaPlana);
-        byte[] iV;
-        iV = IV.getBytes();
+    public static void testeImprimirArquivo() {
 
-        Key key;
-        Cipher in, out;
+        int i = 1;
+        for (Object item : usuarios) {
+            System.out.println("");
+            System.out.printf("Objeto nro....: %d.\n", i++);
+            System.out.println("Salt:  " + Hex.encodeHexString(((Usuario) item).getSalt()));
+            System.out.println("Nome:  " + ((Usuario) item).getNome());
+            System.out.println("Senha:  " + ((Usuario) item).getSenha());
+            System.out.println("");
 
-        in = Cipher.getInstance("AES/GCM/NoPadding", "BCFIPS");
-        out = Cipher.getInstance("AES/GCM/NoPadding", "BCFIPS");
-
-        key = new SecretKeySpec(saltKey, "AES");
-
-        GCMParameterSpec​ gcmParameters = new GCMParameterSpec​(MAC_SIZE, iV);
-
-        //in.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(N));
-        in.init(Cipher.ENCRYPT_MODE, key, gcmParameters);
-
-        byte[] enc = in.doFinal(senha);
-
-        System.out.println("Msg cifrada = " + Hex.encodeHexString(enc));
-        return enc;
+        }
     }
-
-    /* public static String gerarMsgDecifrada(byte[] saltKey, String senhaPlana, String IV) throws NoSuchAlgorithmException, NoSuchProviderException, NoSuchPaddingException, DecoderException, InvalidKeyException, InvalidAlgorithmParameterException, IllegalBlockSizeException, BadPaddingException {
-        byte[] senha;
-        senha = senhaPlana.getBytes();
-        System.out.println("Msg = " + senhaPlana);
-        byte[] iV;
-        iV = IV.getBytes();
-
-        Key key;
-        Cipher in, out;
-
-        in = Cipher.getInstance("AES/GCM/NoPadding", "BCFIPS");
-        out = Cipher.getInstance("AES/GCM/NoPadding", "BCFIPS");
-
-        key = new SecretKeySpec(saltKey, "AES");
-
-        GCMParameterSpec​ gcmParameters = new GCMParameterSpec​(MAC_SIZE, iV);
-
-        byte[] enc = in.doFinal(senha);
-       
-        out.init(Cipher.DECRYPT_MODE, key, gcmParameters);
-        byte[] out2;
-        out2 = out.doFinal(enc);
-
-        System.out.println("Msg decifrada = " + Utils.toString(out2));
-
-        return Utils.toString(out2);
-    }*/
 }
