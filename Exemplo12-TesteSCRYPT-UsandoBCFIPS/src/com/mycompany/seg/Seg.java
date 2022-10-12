@@ -28,7 +28,11 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.crypto.spec.GCMParameterSpec;
 import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Base32;
-import de.taimos.totp.TOTP;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import javax.crypto.Mac;
 
 public class Seg {
 
@@ -113,18 +117,16 @@ public class Seg {
         System.out.println("Usuario Atual:  " + comparador);
         System.out.println("Usuario da lista:  " + daLista);
         System.out.println("");
-        System.out.println("Nome do usuario atual "+ comparador.getNome());
-        System.out.println("Senha do usuario atual "+ comparador.getSenha());
+        System.out.println("Nome do usuario atual " + comparador.getNome());
+        System.out.println("Senha do usuario atual " + comparador.getSenha());
         System.out.println("");
         if (daLista.equals(comparador)) {
             String masterKey = gerarMasterKey(Hex.encodeHexString(daLista.getSalt()), comparador.getSenha(), iteracoes);
             String codigoServer = getTOTPCode(masterKey);
             // Thread.sleep(9000);
             String codigoCliente = getTOTPCode(masterKey);
-            System.out.println("TOTP code cliente:  " + codigoCliente);
-            System.out.println("TOTP code server:  " + codigoServer);
-            System.out.println("");
             if (codigoServer.equals(codigoCliente)) {
+                System.out.println("");
                 System.out.println("Segundo fator de autenticação validado com sucesso");
             }
         }
@@ -210,11 +212,27 @@ public class Seg {
     }
 
     public static String getTOTPCode(String secretKey) {
-        Base32 base32 = new Base32();
-        byte[] bytes = base32.decode(secretKey);
-        String hexKey = Hex.encodeHexString(bytes);
-        return TOTP.getOTP(hexKey);
-
+        try {
+            long value = LocalDateTime.now().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli() / TimeUnit.SECONDS.toMillis(30);
+            final byte[] key = new Base32().decode("the_password".toUpperCase(Locale.US));
+            final var data = new byte[8];
+            for (int i = 8; i-- > 0; value >>>= 8) {
+                data[i] = (byte) value;
+            }
+            final var signKey = new SecretKeySpec(key, "HmacSHA256"); // would like to change here to "HmacSHA256"
+            final var mac = Mac.getInstance("HmacSHA256"); // would like to change here to "HmacSHA256"
+            mac.init(signKey);
+            final String hashString = new String(new Hex().encode(mac.doFinal(data)));
+            final var offset = Integer.parseInt(hashString.substring(hashString.length() - 1), 16);
+            final var truncatedHash = hashString.substring(offset * 2, offset * 2 + 8);
+            final var finalHash = String.valueOf(Integer.parseUnsignedInt(truncatedHash, 16) & 0x7FFFFFFF);
+            final var finalHashCut = finalHash.substring(finalHash.length() - 6);
+            System.out.println("o TOTP gerado com  HmacSHA256 é:  " + finalHashCut);
+            return finalHashCut;
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            //LOGGER.warn("", e);
+            return "";
+        }
     }
 
     public static void testeImprimirArquivo() {
